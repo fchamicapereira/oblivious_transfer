@@ -5,4 +5,4 @@
 
 # Research
 
-- [How to Exchange Secrets with Oblivious Transfer, Michael O. Rabin, 1981](../blob/master/papers/Rabin-Oblivious-Transfer.pdf)
+- [How to Exchange Secrets with Oblivious Transfer, Michael O. Rabin, 1981](../master/papers/Rabin-Oblivious-Transfer.pdf)
