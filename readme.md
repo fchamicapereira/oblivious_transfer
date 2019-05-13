@@ -14,7 +14,7 @@
 
     all-or-nothing oblivious transfer protocol
     
- # Examples of code
+ # Examples of implementation
  https://github.com/mayank0403/Oblivious-Transfer-and-Zero-Knowledge-Proof/blob/master/1-out-of-2%20Oblivious%20Transfer.ipynb
  
  https://github.com/wbernoudy/ot.py
