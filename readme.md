@@ -13,3 +13,8 @@
 - [All-or Nothing Disclosure of Secrets, Brassard and Crepeau, 1986](../master/papers/all-or-nothing-OT.pdf)
 
     all-or-nothing oblivious transfer protocol
+    
+ # Examples of code
+ https://github.com/mayank0403/Oblivious-Transfer-and-Zero-Knowledge-Proof/blob/master/1-out-of-2%20Oblivious%20Transfer.ipynb
+ 
+ https://github.com/wbernoudy/ot.py
