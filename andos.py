@@ -1,21 +1,12 @@
 #!/usr/bin/env python3
 
-import random
-import math
+import socket
 
-"""
-	===================================================
+from Crypto.PublicKey import RSA
+from Crypto.Util import number
+from Crypto.Random import random
 
-	OBLIVIOUS ALL-OR-NOTHING TRANSFER (ANDOS) LIBRARY
-
-	===================================================
-"""
-
-def is_quadratic_residue(a, m):
-	for b in range(1,int((m - 1) / 2) + 1):
-		if (b ** 2) % m == a % m:
-			return True
-	return False
+keySize = 1024
 
 def legendre(a, p):
 	return pow(a, (p - 1) // 2, p)
@@ -50,125 +41,98 @@ def tonelli(n, p):
 		m = i
 	return r
 
-class Server:
+class OT():
 
-	encoding = "utf-8"
-	pad_char = "="
+	pad = chr(0x00)
 
-	def __init__(self, m, p, q):
-		self.m = m
-		self.p = p
-		self.q = q
-		self.y = (p * q) % m
+	def __init__(self, secret):
+		self.secret = secret
 
-		# TODO: check if p and q are prime ?
+		print("Generating Ka...")
+		self.Ka = RSA.generate(keySize)
+		print("Done")
 
-		self.Z = [ i for i in range(self.m) ]
-		self.Zt = [ i for i in self.Z if math.gcd(i, self.m) == 1 ]
+		print("Genering primes p, q...")
+		self.p = number.getPrime(keySize)
+		self.q = number.getPrime(keySize)
+		self.n = self.p * self.q
+		print("Done")
 
-		self.secrets = []
-		self.secrets_size = 0 # size of all the secrets (they should all be the same size)
+		print(self.p, self.q)
 
-		self.z = []
+	def recvN(self, conn):
+		n = int.from_bytes(conn.recv(keySize), "little")
 
-	def store_secret(self, secret):
+		x = random.randint(0, n)
+		c = (x * x) % n
 
-		b = bytes(secret, self.encoding)
-		pad = bytes(self.pad_char, self.encoding)
+		conn.sendall(c.to_bytes(keySize, "little"))
 
-		# all the secrets must have the same size
-		# the size should be the size of the longest secret
-		# all the others must be padded
+		x1 = int.from_bytes(conn.recv(keySize), "little")
 
-		size = len(b)
+		d = number.GCD(x - x1, n)
+		# d = p or d = q (of the other user) with 1/2 probability
 
-		if size < self.secrets_size:
-			b += (self.secrets_size - size) * pad
+		# checking factorization
+		if d != 1 and n % d == 0:
+			p = d
+			q = n // d
 
-		elif size > self.secrets_size:
-			for i in range(len(self.secrets)):
-				self.secrets[i] += (size - self.secrets_size) * pad
-			self.secrets_size = size
+			return (0, p, q)
+			
+		return (1, 0, 0)
 
-		# convert to bytes and store
-		self.secrets.append(bytes(secret, self.encoding))
+	def sendN(self, conn):
+		conn.sendall(self.n.to_bytes(keySize, "little"))
 
-	def get_secret(self, i):
-		s = self.secrets[i].decode(self.encoding)
+		c = int.from_bytes(conn.recv(keySize), "little")
 
-		while len(s) > 0 and s[-1:] == self.pad_char:
-			s = s[:-1]
+		# sending a square root of c mod n
+		root_p = tonelli(c,self.p)
+		root_q = tonelli(c, self.q)
 
-		return s
+		roots = [ root_p, self.p - root_p, root_q, self.q - root_q ]
+		x1 = roots[random.randint(0,3)]
 
-	def get_bit(self, secret_index, bit_index):
-		return (int.from_bytes(self.secrets[secret_index], "big") >> bit_index) & 1
+		conn.sendall(x1.to_bytes(keySize, "little"))
+	
+	def sendEpsilon(self, conn, knowledge, secret):
+		epsilon = (knowledge ^ self.secret).to_bytes(1, "little")
+		conn.sendall(epsilon, 1)
+	
+	def recvEpsilon(self, conn):
+		return conn.recv(1)
 
-	def validate_sigma_packets(self, sigma_packets):
-		pass
+	def start(self, host="localhost", port=8888):
 
-	def respond(self, sigma_packets, requested_secret):
-		self.validate_sigma_packets(sigma_packets)
+		with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+			s.bind((host, port))
+			s.listen()
+			conn, addr = s.accept()
 
-		packet = sigma_packets[requested_secret]
+			with conn:
+				self.sendN(conn)
+				result = self.recvN(conn)
+				
+				print(result)
 
+				self.sendEpsilon(conn, result[0], self.secret)
+				other_epsilon = int.from_bytes(self.recvEpsilon(conn), "little")
 
+				print(other_epsilon)
 
+	def connect(self, host="localhost", port=8888):
+		
+		with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+			s.connect((host, port))
 
-	def start(self):
-		def compute_z():
-			for word in range(len(self.secrets)):
-				self.z.append([])
+			result = self.recvN(s)
+			self.sendN(s)
 
-				for index in range(self.secrets_size * 8):
-					x = self.Zt[random.randint(0, len(self.Zt) - 1)]
-					z = ( x*x * int(math.pow(self.y, self.get_bit(word, index))) ) % self.m
+			print(result)
 
-					self.z[word].append(z)
+			other_epsilon = int.from_bytes(self.recvEpsilon(s), "little")
+			self.sendEpsilon(s, result[0], secret)
 
-		compute_z()
-
-class Client:
-
-	def __init__(self, z, m, y):
-		self.z = z
-		self.m = m
-		self.y = y
-
-		self.Z = [ i for i in range(self.m) ]
-		self.Zt = [ i for i in self.Z if math.gcd(i, self.m) == 1 ]
-
-	def request_secret(self, i):
-
-		sigma = [ i for i in range(len(z)) ]
-		random.shuffle(sigma)
-		sigma_packets = []
-
-		for secret_index in range(len(self.z)):
-				sigma_packets.append([])
-
-				for index in range(len(self.z[secret_index])):
-					a = random.randint(0, 1)
-					r = self.Zt[random.randint(0, len(self.Zt) - 1)]
-
-					sigma_packets[secret_index].append( (z[sigma[secret_index]][index] * r*r * int(math.pow(self.y, a))) % self.m )
-
-		# TODO: convince Alice that sigma permutated is valid
-
-		return sigma_packets
-
-s = Server(134, 2333, 2719)
-
-s.store_secret("A")
-s.store_secret("B")
-
-s.start()
-
-# client
-z = s.z
-m = s.m
-y = s.y
-
-c = Client(z, m, y)
-print(c.request_secret(0))
+			print(other_epsilon)
 
