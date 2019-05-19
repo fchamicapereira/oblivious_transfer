@@ -1,27 +1,48 @@
 #!/usr/bin/env python3
 
-import math
+from threading import Thread
+import time
+from ObliviousTransfer import One_out_of_Two
 import random
 
-from andos import tonelli
+port = 8000
 
-from Crypto.PublicKey import RSA
-from Crypto.Util import number
-from Crypto.Random import random
+class Alice(Thread):
+	def run(self):
+		alice = One_out_of_Two()
 
-p = 241
-q = 769
-n = p * q
-print(p,q,n)
+		alice.store_secret("They SEE things", "NSA leak")
+		alice.store_secret("He doesn't see anything", "Trump leak")
 
-x = random.randint(0,n)
-c = (x*x) % n
-print("x", x, "c", c)
+		alice.show_secrets()
 
-tp = tonelli(c,p)
-tq = tonelli(c,q)
-all_x = [tp, tq, p-tp, q-tq]
-print("x1 => all_x", all_x)
+		alice.start(port=port)
 
-x1 = all_x[random.randint(0,3)]
-print(math.gcd(x-x1,n))
+class Bob(Thread):
+	def run(self):
+		bob = One_out_of_Two()
+		time.sleep(2)
+		bob.connect(port=port)
+
+while True:
+	try:
+		alice = Alice()
+		bob = Bob()
+
+		port = random.randint(8000, 9000)
+		print("port", port)
+
+		alice.start()
+		bob.start()
+		alice.join()
+		bob.join()
+	except ValueError:
+		print("EXCEPTION")
+		alice.join()
+		bob.join()
+		break
+	except ConnectionResetError:
+		print("EXCEPTION")
+		alice.join()
+		bob.join()
+		break

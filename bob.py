@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
-from andos import OT
+from ObliviousTransfer import One_out_of_Two
 
-secret ="bob secret"
-bob = OT(secret)
+secret = 1
+bob = One_out_of_Two()
 
-bob.connect()
+secret = bob.start()
+print(secret)
