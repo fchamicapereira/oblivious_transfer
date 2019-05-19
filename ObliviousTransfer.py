@@ -17,13 +17,14 @@ from Crypto.PublicKey import RSA
 from Crypto.Util import number
 from Crypto.Random import random, get_random_bytes
 
-PORT = 8881
+PORT = 8880
 keySize = 1024
 
 class One_out_of_Two():
 	
 	encoding = "utf-8"
 	pad_char = chr(0x00)
+	verbose = False
 
 	def __init__(self, client=True):
 
@@ -31,6 +32,7 @@ class One_out_of_Two():
 
 		if not self.client:
 			print("Generating RSA key pair...")
+
 			K = RSA.generate(keySize)
 
 			self.d = K.d
@@ -122,12 +124,19 @@ class One_out_of_Two():
 	def start(self, host="localhost", port=PORT, choice=0):
 
 		def sendInt(conn, integer):
+
+			if self.verbose:
+				print("  >", integer, "\n")
+
 			conn.sendall(bytes(str(integer), self.encoding))
 			conn.recv(1)
 
 		def recvInt(conn):
 			integer = conn.recv(keySize).decode(self.encoding)
 			conn.sendall(bytes(1))
+
+			if self.verbose:
+				print("  <", integer, "\n")
 
 			return int(integer)
 
@@ -154,7 +163,8 @@ class One_out_of_Two():
 						
 						# asking for secret
 
-						print("Generating x0, x1")
+						if self.verbose:
+							print("Generating x0, x1")
 
 						x = [
 							[ random.randint(0, self.n) for i in range(keySize) ],
@@ -163,11 +173,14 @@ class One_out_of_Two():
 
 						conn.sendall(self.secrets_size.to_bytes(8, "little"))
 
-						print("Sending N and e")
+						if self.verbose:
+							print("Sending N and e")
+
 						conn.sendall(self.n.to_bytes(keySize, "little"))
 						conn.sendall(self.e.to_bytes(keySize, "little"))
 
-						print("Sending x0, x1")
+						if self.verbose:
+							print("Sending x0, x1")
 
 						for i in range(2):
 							for b in range(self.secrets_size):
@@ -175,15 +188,17 @@ class One_out_of_Two():
 
 						v = [ 0 for i in range(self.secrets_size) ]
 
+						if self.verbose:
+							print("Receiving v")
+
 						for b in range(self.secrets_size):
 							v[b] = recvInt(conn)
-
-						print("Received v")
 
 						k = [ [ 0 for i in range(self.secrets_size) ], [ 0 for i in range(self.secrets_size) ] ]
 						m = [ [ 0 for i in range(self.secrets_size) ], [ 0 for i in range(self.secrets_size) ] ]
 
-						print("Calculating and sending m0', m1'")
+						if self.verbose:
+							print("Calculating and sending m0', m1'")
 
 						for i in range(2):
 
@@ -210,23 +225,29 @@ class One_out_of_Two():
 				n = int.from_bytes(conn.recv(keySize), "little")
 				e = int.from_bytes(conn.recv(keySize), "little")
 
-				print("Received N, e")
+				if self.verbose:
+					print("Received N", n)
+					print("Received e", e)
 
 				x = [ [ 0 for i in range(self.secrets_size) ], [ 0 for i in range(self.secrets_size) ] ]
+
+				if self.verbose:
+					print("Receiving x0, x1")
 
 				for j in range(2):
 					for i in range(self.secrets_size):
 						x[j][i] = recvInt(conn)
 
-				print("Received x0, x1")
+				if self.verbose:
+					print("Generating random k")
 
-				print("Generating random k")
 				k = [ random.randint(0, n) for i in range(self.secrets_size) ]
 
 				#input
 				b = choice
 
-				print("Calculating and sending v")
+				if self.verbose:
+					print("Calculating and sending v")
 
 				# encrypt
 				for i in range(self.secrets_size):
@@ -237,7 +258,9 @@ class One_out_of_Two():
 
 				m = bytearray(bytes(self.secrets_size))
 
-				print("Receiving m0', m1'")
+				if self.verbose:
+					print("Receiving m0', m1'")
+
 				#decrypt
 				for j in range(2):
 
