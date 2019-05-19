@@ -2,7 +2,6 @@
 
 from ObliviousTransfer import One_out_of_Two
 
-secret = 1
 alice = One_out_of_Two(client=False)
 
 alice.store_secret("They SEE things", "NSA leak")
