@@ -24,7 +24,7 @@ pyserial==3.0.1
 python-apt==1.1.0b1+ubuntu0.16.4.2
 python-debian==0.1.27
 python-systemd==231
-PyYAML==5.1
+PyYAML==5.4
 requests==2.22.0
 shellescape==3.4.1
 six==1.10.0
